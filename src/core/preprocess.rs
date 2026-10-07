@@ -21,20 +21,33 @@ pub fn shorten(code: &mut String){
     let mut shortened_code=String::new();
 
     let shortenable_chars=vec!['+', '-', '<', '>'];
-    let mut counter=(' ', 0u32);
+    let mut counter=(' ', 0usize);
 
     for c in code.chars(){
         if shortenable_chars.contains(&c){
             if counter.0==c||counter.0==' '{
                 counter=(c, counter.1+1);
             }else{
-                shortened_code+=&("(".to_string()+counter.1.to_string().as_str()+counter.0.to_string().as_str()+")");
+                shortened_code+=shorten_ins(counter).as_str();
                 counter=(c, 1);
             }
         }else{
             shortened_code+=c.to_string().as_str();
+            counter=(' ', 0);
         }
     }
 
+    if counter.1>0{
+        shortened_code+=shorten_ins(counter).as_str();
+    }
+
     *code=shortened_code;
+}
+
+fn shorten_ins(ins: (char, usize)) -> String{
+    let mut added_instruction=ins.0.to_string();
+    if ins.1>1{
+        added_instruction+=ins.1.to_string().as_str();
+    }
+    return added_instruction;
 }

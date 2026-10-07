@@ -16,6 +16,7 @@ pub fn compile(parsed_input: &mut Input) -> Result<String, Box<dyn Error>>{
     }
 
     //we are now only working with pure sbf
+    let instruction_set=tree_builder::build_instruction_set(&parsed_input.source_code);
 
     //quick test
     Ok(parsed_input.source_code.clone())
