@@ -1,11 +1,13 @@
-use std::{error::Error, fmt::{Formatter, format}};
+use std::{error::Error, fmt::Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BfcError{
     SourceNotSpecified,
-    DestinationNotSpecified,
     InvalidFlag(String),
     InvalidInstruction(String),
+    InvalidParenthesesOpen,
+    InvalidParenthesesClose,
+    ConversionToAsmNotImplemented(crate::core::builder::Instruction),
 }
 
 impl Error for BfcError{}
@@ -15,10 +17,26 @@ impl std::fmt::Display for BfcError{
         use BfcError::*;
         let err_msg: String=match self{
             SourceNotSpecified => "the source file has not been specified".into(),
-            DestinationNotSpecified => "the target file has not been specified".into(),
             InvalidFlag(flag) => format!("invalid flag has been passed: {flag}"),
-            InvalidInstruction(c) => format!("failed when parsing instructiom: {c}")
+            InvalidInstruction(c) => format!("failed when parsing instruction: '{c}'"),
+            InvalidParenthesesOpen => "too many opening parentheses '[' in source code".into(),
+            InvalidParenthesesClose => "too many closing parentheses ']' in source code".into(),
+            ConversionToAsmNotImplemented(i) => format!("the converter doesnt know how to process {i:?}"),
         };
         write!(formatter, "{err_msg}")
+    }
+}
+
+pub enum BfcWarn{
+    UnimplementedFlag(crate::Flag),
+}
+
+impl std::fmt::Display for BfcWarn{
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> Result<(), std::fmt::Error>{
+        use BfcWarn::*;
+        let warn_msg: String=match self{
+            UnimplementedFlag(f) => format!("used a flag that is not implemented: {f:?}"),
+        };
+        write!(formatter, "{warn_msg}")
     }
 }
