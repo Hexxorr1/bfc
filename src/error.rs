@@ -1,9 +1,13 @@
 use std::{error::Error, fmt::Formatter};
 
+use crate::flags::Flag;
+
 #[derive(Debug, PartialEq)]
 pub enum BfcError{
     SourceNotSpecified,
     InvalidFlag(String),
+    InvalidFlagArgs(Vec<String>),
+    TooLittleFlagArgs(Flag),
     InvalidInstruction(String),
     InvalidParenthesesOpen,
     InvalidParenthesesClose,
@@ -18,6 +22,8 @@ impl std::fmt::Display for BfcError{
         let err_msg: String=match self{
             SourceNotSpecified => "the source file has not been specified".into(),
             InvalidFlag(flag) => format!("invalid flag has been passed: {flag}"),
+            InvalidFlagArgs(argv) => format!("invalid arguments have been passed: {argv:?}"),
+            TooLittleFlagArgs(f) => format!("too little args have been passed to {f:?}"),
             InvalidInstruction(c) => format!("failed when parsing instruction: '{c}'"),
             InvalidParenthesesOpen => "too many opening parentheses '[' in source code".into(),
             InvalidParenthesesClose => "too many closing parentheses ']' in source code".into(),
@@ -28,14 +34,14 @@ impl std::fmt::Display for BfcError{
 }
 
 pub enum BfcWarn{
-    UnimplementedFlag(crate::Flag),
+
 }
 
 impl std::fmt::Display for BfcWarn{
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result<(), std::fmt::Error>{
         use BfcWarn::*;
         let warn_msg: String=match self{
-            UnimplementedFlag(f) => format!("used a flag that is not implemented: {f:?}"),
+            _ => "".to_string(),
         };
         write!(formatter, "{warn_msg}")
     }

@@ -59,7 +59,8 @@ fn operation_optimization_pattern_matching(){
     use crate::core::builder::optimize_code;
     use crate::core::builder::Instruction::*;
 
-    let uop=vec![LoopBegin(2), Add(255), LoopEnd(0), Add(67)];
-    let op=optimize_code(&uop, 2).unwrap().0;
-    assert_eq!(op, vec![Set(67)]);
+    let mut uop=vec![LoopBegin(2), Add(255), LoopEnd(0), Add(67)];
+    let passes=optimize_code(&mut uop, 2).unwrap();
+    assert_eq!(uop, vec![Set(67)]);
+    assert_eq!(passes, 2);
 }

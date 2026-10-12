@@ -18,15 +18,27 @@ pub fn parse_input(argv: &mut Args) -> Result<Input, Box<dyn Error>>{
     let destination_name=source_path.rsplit_once('.').map_or("output", |(before, _)| before).to_string();
 
     let mut flags: Vec<Flag>=Vec::new();
+    let mut flag_args: Vec<String>=Vec::new();
+    let mut last_flag: Option<String>=None;
+
+    let mut argv=argv.chain(std::iter::once("-".to_string()));
     loop{
-        let flag=argv.next();
-        match flag{
-            Some(f) =>{
-                let internal_flag=Flag::from_string(&f)?;
-                if internal_flag.is_implemented(){
-                    flags.push(internal_flag);
-                }else{
-                    eprintln!("Warn: flag \"{f}\": {internal_flag:?} is not implemented and will be skipped");
+        let next_arg=argv.next();
+        match next_arg{
+            Some(arg) =>{
+                match arg.chars().nth(0).ok_or("nice arg bro")?{
+                    '-' =>{
+                        match last_flag{
+                            None => (),
+                            Some(f) =>{
+                                let internal_flag=Flag::from_string(&f, &flag_args)?;
+                                flags.push(internal_flag);
+                            }
+                        }
+                        last_flag=Some(arg);
+                        flag_args.clear();
+                    },
+                    _  => flag_args.push(arg),
                 }
             },
             None => break

@@ -2,6 +2,8 @@ use crate::{core::builder::Instruction, error::BfcError};
 use std::fmt::Write;
 use std::error::Error;
 
+//the converter, holds some data used in asm generation and its optimization
+//tape refers to the memory, seekers have custom labels
 pub struct AssemblyGenerator{
     tape_offset: isize,
     current_ins_idx: usize,
@@ -9,25 +11,33 @@ pub struct AssemblyGenerator{
 }
 
 impl AssemblyGenerator{
+    //creates an instance of a generator
     pub fn new() -> Self{
         return Self{tape_offset: 0, current_ins_idx: 0, seekers_encountered: 0};
     }
 
+    //converts an instruction list to a valid asm x86-64 instruction list
     pub fn convert_to_assembly(&mut self, instruction_list: &Vec<Instruction>) -> Result<String, Box<dyn Error>>{
         let mut asm=String::new();
 
+        //setup the file
         asm.push_str(&get_asm_base());
 
+        //translate every instruction
         for (idx, ins) in instruction_list.iter().enumerate(){
             self.current_ins_idx=idx;
+
+            //the function updates the file automatically
             ins.to_asm(&mut asm, self)?;
         }
 
+        //close the file
         asm.push_str(&get_asm_closing());
 
         Ok(asm)
     }
 
+    //get the current memory including tape_offset and user-given offset
     fn mem(&self, offset: isize) -> String{
         use std::cmp::Ordering;
         let offset=self.tape_offset+offset;
@@ -38,6 +48,7 @@ impl AssemblyGenerator{
         }
     }
 
+    //flushes tape_offset, while generating the asm instruction for that
     fn flush_pointer_offset(&mut self) -> String{
         if self.tape_offset==0{
             return String::new();
@@ -50,6 +61,7 @@ impl AssemblyGenerator{
 }
 
 impl Instruction{
+    //gigantic table for converting to asm, add more here, also optimize the generated code, (use less offset flushes, better instructions etc.)
     fn to_asm(&self, asm: &mut String, cg: &mut AssemblyGenerator) -> Result<(), Box<dyn Error>>{
         use crate::core::builder::Instruction::*;
         //writeln!(asm, "")?;
@@ -67,7 +79,7 @@ impl Instruction{
             LoopEnd(bi) =>{
                 writeln!(asm, "{}", cg.flush_pointer_offset())?;
                 writeln!(asm, "loop_{}_check:", bi)?;
-                writeln!(asm, "\tcmp byte {}, 0", cg.mem(0))?;
+                writeln!(asm, "\tcmp {}, 0", cg.mem(0))?;
                 writeln!(asm, "\tjne loop_{}\n", bi)?;
             },
 
@@ -77,9 +89,16 @@ impl Instruction{
             
             Print => writeln!(asm, "\tmovzx ecx, {}\n\tcall putchar", cg.mem(0))?,
 
-            AddSelfToAnother(n) =>{
+            ExitIfNonZero =>{
+                writeln!(asm, "\tcmp {}, 0", cg.mem(0))?;
+                writeln!(asm, "\tjne EXIT_PROGRAM")?;
+            },
+
+            AddSelfToMultiple(targets) =>{
                 writeln!(asm, "\tmov al, {}", cg.mem(0))?;
-                writeln!(asm, "\tadd {}, al", cg.mem(*n))?;
+                for offset in targets{
+                    writeln!(asm, "\tadd {}, al", cg.mem(*offset))?;
+                }
                 writeln!(asm, "\tmov {}, 0", cg.mem(0))?;
             },
 
@@ -105,13 +124,13 @@ impl Instruction{
                 cg.seekers_encountered+=1;
             },
 
-            unim => return Err(Box::new(BfcError::ConversionToAsmNotImplemented(*unim))),
+            unim => return Err(Box::new(BfcError::ConversionToAsmNotImplemented(unim.clone()))),
         };
         Ok(())
     }
 }
 
-//eww
+//the start of the generated asm file
 fn get_asm_base() -> String{
     return r#"
 default rel
@@ -132,8 +151,10 @@ main:
 "#.to_string();
 }
 
+//the end of the generated file
 fn get_asm_closing() -> String{
     return r#"
+EXIT_PROGRAM:
     xor eax, eax
     add rsp, 32
     pop r12

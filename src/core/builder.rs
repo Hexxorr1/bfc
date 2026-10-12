@@ -1,10 +1,11 @@
 use crate::{core::builder::Instruction::{LoopBegin, LoopEnd}, error::BfcError};
+use crate::core::op_chars;
 use std::error::Error;
 
 pub mod code_optimizer;
 pub use code_optimizer::optimize_code;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Instruction{
     //basic bf operations
     Add(u8),
@@ -26,26 +27,17 @@ pub enum Instruction{
     Set(u8),                                                                //sets the current cell to (u8)
     Seek(u8, isize),                                                        //repeatedly goes (isize) in memory until it finds (u8), MODIFIES START AND END BY (-u8) AND (u8)
     SeekClean(u8, isize),                                                   //performs a Seek() without modifying start and end
-    AddSelfToAnother(isize),                                                //the cell (isize) to the right is incremented by this, sets this cell to 0
-    AddSelfToAnotherByMarks(u8, isize, isize, u8, isize, isize),            //AddSelfToAnother but with two user-placed markers (Seek() points) and offset to them
-    Copy(isize),                                                            //copies the value of the current cell into (isize) away
-    CompareValue(u8, u8, u8, u8),                                           //compares self and (u8.1), outputting to self: (u8.2)=less, (u8.3)=equal, (u8.4)=more
-    Compare(isize, u8, u8, u8),                                             //compares self and (isize away), outputting to self: (u8.1)=less, (u8.2)=equal, (u8.3)=more
     Not,                                                                    //if self is 0, sets it to 1, else sets it to 0
-    
-        //multiIO, basically useless
-    ReadMany(usize),                                                        //reads into the next (usize) cells in memory
-    ReadUntil(u8),                                                          //reads into consecutive cells to the right until it encounters (u8) BEFORE read
-    ReadUntilInput(u8),                                                     //reads into consecutive cells to the right until (u8) has been input WHICH IS NOT READ
-    PrintMany(usize),                                                       //prints from the next (usize) cells in memory
-    PrintUntil(u8),                                                         //prints from consecutive cells to the right until it encounters (u8) WHICH IS NOT PRINTED
+    ExitIfNonZero,                                                          //closes the program if the current cell is not 0
+    CopyWithBuffer(isize, isize),                                           //copies the current cell into (isize.1) away using (isize.2) as a buffer
+    AddSelfToMultiple(Vec<isize>),                                          //adds the value of self into cells (Vec<isize>) away, sets self to 0
 
         //pure asm x86-64 instructions
     //CompareFlag(isize),                                                     //cmp [rbx], [rbx+(isize)]
 }
 
 impl Instruction{
-    //some dont need v
+    //converts sbf to Self, some dont need v
     fn from_sbf(c: char, v: isize) -> Result<Self, BfcError>{
         use Instruction::*;
         match c{
@@ -65,29 +57,39 @@ impl Instruction{
 
 //from sbf
 pub fn build_instruction_list(code: &str) -> Result<Vec<Instruction>, Box<dyn Error>>{
-    let mut instructions=Vec::new();
+    let mut instructions=Vec::with_capacity(code.len()/2);
 
     let mut current_op=None;
     let mut count=0isize;
 
-    for c in code.chars().chain(std::iter::once(' ')) {
-        if matches!(c, '+' | '-' | '<' | '>' | '[' | ']' | ',' | '.' | '~') || c==' '{
+    let mut instruction_chars=op_chars().0;
+    instruction_chars[b'~' as usize]=true;
+
+    //append ' ' to the end to mark it for the code
+    for c in code.chars().chain(std::iter::once(' ')){
+        if instruction_chars[c as usize] || c==' '{
             if let Some(op)=current_op{
+                //push the PREVIOUS instruction, the reason we need ' ' at the end
                 instructions.push(Instruction::from_sbf(op, count.max(1))?);
             }
 
+            //either end or the next char
             current_op=if c==' '{None}else{Some(c)};
             count=0;
         }else{
-            count=count.checked_mul(10).and_then(|n| n.checked_add(c.to_digit(10).unwrap() as isize)).ok_or("Instruction count overflow")?;
+            //increment the operations count
+            count=count.checked_mul(10).and_then(|n| n.checked_add(c.to_digit(10)? as isize)).ok_or("Instruction count overflow")?;
         }
     }
 
+    //since loops were pushed with junk, recalculate
     recalculate_loops(&mut instructions)?;
+
 
     Ok(instructions)
 }
 
+//recalculate loop indices, also used when generating a new set in optimization
 fn recalculate_loops(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
     let mut loop_stack=Vec::new();
 
@@ -104,6 +106,7 @@ fn recalculate_loops(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
     }
 
     if !loop_stack.is_empty(){
+        println!("found {}", loop_stack.len());
         return Err(Box::new(BfcError::InvalidParenthesesOpen));
     }
 

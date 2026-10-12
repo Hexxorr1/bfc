@@ -1,43 +1,28 @@
 use std::error::Error;
 
 use crate::error::BfcError;
-
+use crate::core::OutputType;
 
 #[derive(Debug, PartialEq)]
 pub enum Flag{
     ShortenedInput,
     LogProgress,
-    OutputSbf,
-    AssureSecure,
-    OutputOperationList,
-    OutputOperationListPretty,
-    OutputOptimizedOperationList,
-    OutputOptimizedOperationListPretty,
+    DiffirentOutput(OutputType),
     AutoAssemble,
     OptimizationLevel(u8),
 }
 
 impl Flag{
-    pub fn from_string(s: &String) -> Result<Self, Box<dyn Error>>{
+    pub fn from_string(s: &String, argv: &Vec<String>) -> Result<Self, Box<dyn Error>>{
         use Flag::*;
+        use BfcError::TooLittleFlagArgs;
         match s.as_str(){
             "-si" => Ok(ShortenedInput),
-            "-so" => Ok(OutputSbf),
             "-log" => Ok(LogProgress),
-            "-ass" => Ok(AssureSecure),
-            "-ol" => Ok(OutputOperationList),
-            "-olp" => Ok(OutputOperationListPretty),
-            "-ool" => Ok(OutputOptimizedOperationList),
-            "-oop" => Ok(OutputOptimizedOperationListPretty),
             "-bin" => Ok(AutoAssemble),
-            "-O0" => Ok(OptimizationLevel(0)),
+            "-ot" => Ok(DiffirentOutput(OutputType::from_string(argv.get(0).ok_or(TooLittleFlagArgs(DiffirentOutput(OutputType::Sbf)))?.to_string())?)),
+            "-O" => Ok(OptimizationLevel(argv.get(0).ok_or(TooLittleFlagArgs(OptimizationLevel(0)))?.parse::<u8>()?)),
             other => Err(Box::new(BfcError::InvalidFlag(other.to_string()))),
         }
-    }
-
-    pub fn is_implemented(&self) -> bool{
-        use Flag::*;
-        let unimplemented_flags=vec![AssureSecure];
-        return !unimplemented_flags.contains(self);
     }
 }

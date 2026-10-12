@@ -33,67 +33,97 @@ macro_rules! optimization_table{
 }
 
 //find patterns in code and replace them with custom operations
-pub fn optimize_code(ins: &Vec<Instruction>, max_passes: u32) -> Result<(Vec<Instruction>, u32), Box<dyn Error>>{
-    let mut current_iteration_code=ins.clone();
+pub fn optimize_code(ins: &mut Vec<Instruction>, max_passes: u32) -> Result<u32, Box<dyn Error>>{
+    //working code
+    let mut current_iteration_code=ins;
     let mut i=max_passes;
 
+    //max_passes is a hard limit
     for iter in 0..max_passes{
         let before_len=current_iteration_code.len();
-        current_iteration_code=optimization_pass(&current_iteration_code);
+        optimization_pass(&mut current_iteration_code);
         if before_len==current_iteration_code.len(){
+            //we couldnt optimize any further
             i=iter;
             break;
         }else{
+            //the code got optimized and the loops got messed up, maybe optimize this?
             recalculate_loops(&mut current_iteration_code)?;
         }
     }
 
-    return Ok((current_iteration_code.clone(), i));
+    //return the optimized code, alongside with passes done
+    return Ok(i);
 }
 
-fn optimization_pass(ins: &Vec<Instruction>) -> Vec<Instruction>{
-    let mut result = Vec::new();
-    let mut i = 0;
+//a single pass over the vector
+fn optimization_pass(ins: &mut Vec<Instruction>){
+    let mut result=Vec::with_capacity(ins.len()/2);
+    let mut i=0;
 
-    while i<ins.len() {
+    while i<ins.len(){
+        //pass smaller and smaller chunks of the code through the pattern matching function
         if let Some((consumed, replacement))=optimize(&ins[i..]){
+            //yes match
             result.extend(replacement);
             i+=consumed;
         }else{
-            result.push(ins[i]);
+            //no match
+            result.push(ins[i].clone());
             i+=1;
         }
     }
 
-    return result;
+    *ins=result;
 }
 
-//commented things are to be implemented soon :tm:
+//commented things are to be implemented/fixed soon :tm:
+//the core of the optimization process
 optimization_table!(
         //operation conversion
     [LoopBegin(_), Add(n), LoopEnd(_)] if *n==1 || *n==255 => vec![Set(0)];
     [Set(0), Add(n)] => vec![Set(*n)];
-    [LoopBegin(_), Add(n), Move(m), Add(c), LoopEnd(_)] if *c==n.wrapping_neg() => vec![Seek(*n, *m)];
-    [Add(a), Seek(n, m), Add(b)] if *a==n.wrapping_neg() && *b==*n => vec![SeekClean(*n, *m)];
-    [LoopBegin(_), Move(m), LoopEnd(_)] => vec![SeekClean(0, *m)];
-    [LoopBegin(_), Add(a), Move(n), Add(b), Move(d), LoopEnd(_)] if *a==b.wrapping_neg() && *n==d.wrapping_neg() => vec![AddSelfToAnother(*n)];
-    //[LoopBegin(_), Seek(m1, s1), Add(d), Move(o1), Add(i), Seek(m2, s2), Add(s), Move(o2), LoopEnd(_)] if (???) => vec![AddSelfToAnotherByMarks(*m1, *s1, *o1, *m2, *s2, *o2)];
 
         //removing useless operations
-    [LoopBegin(_), LoopEnd(_)] => vec![];
-    [a, b] if a.only_modifies_self() && b.deterministic_self_from_instruction() => vec![*b];
+    [LoopBegin(_), LoopEnd(_)] => vec![ExitIfNonZero];
+    [a] if a.is_pointless_operation() => vec![];
+    [a, b] if a.only_modifies_self() && b.deterministic_self_from_instruction() => vec![b.clone()];
+
+        //multiple -> single
+
+        //seekers
+    [LoopBegin(_), Move(m), LoopEnd(_)] => vec![SeekClean(0, *m)];
+    [LoopBegin(_), Add(n), Move(m), Add(c), LoopEnd(_)] if *c==n.wrapping_neg() => vec![Seek(*n, *m)];
+    [Add(a), Seek(n, m), Add(b)] if *a==n.wrapping_neg() && *b==*n => vec![SeekClean(*n, *m)];
+    [Add(a), Seek(n, m), Add(b)] => vec![Add(a.wrapping_add(*n)), SeekClean(*n, *m), Add(b.wrapping_sub(*n))];
+
+        //self to another
+    //ONLY SUPPORTS 2 DUE TO COMPILETIME MACRO
+    [LoopBegin(_), Add(a), Move(n), Add(b), Move(d), LoopEnd(_)] if *a==b.wrapping_neg() && *n==d.wrapping_neg() => vec![AddSelfToMultiple(vec![*n])];
 );
 
+//some generics for the optimization function
 impl Instruction{
     fn only_modifies_self(&self) -> bool{
-        use std::mem::discriminant as d;
-        let check_vec=vec![d(&Add(0)), d(&Set(0)), d(&Not), d(&Compare(0, 0, 0, 0)), d(&CompareValue(0, 0, 0, 0))];
-        return check_vec.contains(&d(self));
+        use std::mem::{discriminant as d, Discriminant};
+        const SATISFIES: &[Discriminant<(Instruction)>]=&[d(&Add(0)), d(&Set(0)), d(&Not)];
+        return SATISFIES.contains(&d(self));
     }
 
     fn deterministic_self_from_instruction(&self) -> bool{
-        use std::mem::discriminant as d;
-        let check_vec=vec![d(&Set(0))];
-        return check_vec.contains(&d(self));
+        use std::mem::{discriminant as d, Discriminant};
+        const SATISFIES: &[Discriminant<(Instruction)>]=&[d(&Set(0))];
+        return SATISFIES.contains(&d(self));
+    }
+
+    fn is_pointless_operation(&self) -> bool{
+        match self{
+            Add(n) => *n==0,
+            Move(n) => *n==0,
+            Seek(_, n) => *n==0,
+            SeekClean(_, n) => *n==0,
+            AddSelfToMultiple(v) => v.len()==0,
+            _ => false,
+        }
     }
 }
