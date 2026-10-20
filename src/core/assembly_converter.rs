@@ -1,4 +1,4 @@
-use crate::{core::builder::Instruction, error::BfcError};
+use crate::{core::builder::Instruction, utils::BfcError};
 use std::fmt::Write;
 use std::error::Error;
 
@@ -17,11 +17,11 @@ impl AssemblyGenerator{
     }
 
     //converts an instruction list to a valid asm x86-64 instruction list
-    pub fn convert_to_assembly(&mut self, instruction_list: &Vec<Instruction>) -> Result<String, Box<dyn Error>>{
+    pub fn convert_to_assembly(&mut self, instruction_list: &Vec<Instruction>, tape_size: usize) -> Result<String, Box<dyn Error>>{
         let mut asm=String::new();
 
         //setup the file
-        asm.push_str(&get_asm_base());
+        asm.push_str(&get_asm_base(tape_size));
 
         //translate every instruction
         for (idx, ins) in instruction_list.iter().enumerate(){
@@ -80,7 +80,7 @@ impl Instruction{
                 writeln!(asm, "{}", cg.flush_pointer_offset())?;
                 writeln!(asm, "loop_{}_check:", bi)?;
                 writeln!(asm, "\tcmp {}, 0", cg.mem(0))?;
-                writeln!(asm, "\tjne loop_{}\n", bi)?;
+                writeln!(asm, "\tjne loop_{}", bi)?;
             },
 
             Set(n) => writeln!(asm, "\tmov {}, {}", cg.mem(0), n)?,
@@ -89,15 +89,22 @@ impl Instruction{
             
             Print => writeln!(asm, "\tmovzx ecx, {}\n\tcall putchar", cg.mem(0))?,
 
+            Debug => return Err(Box::new(BfcError::ConversionToAsmNotImplemented(self.clone()))),
+
             ExitIfNonZero =>{
                 writeln!(asm, "\tcmp {}, 0", cg.mem(0))?;
                 writeln!(asm, "\tjne EXIT_PROGRAM")?;
             },
 
-            AddSelfToMultiple(targets) =>{
-                writeln!(asm, "\tmov al, {}", cg.mem(0))?;
-                for offset in targets{
-                    writeln!(asm, "\tadd {}, al", cg.mem(*offset))?;
+            LinearLoop(affected) =>{
+                writeln!(asm, "\tmovzx eax, {}", cg.mem(0))?;
+                for change in affected{
+                    if change.1==1{
+                        writeln!(asm, "\tadd {}, al", cg.mem(change.0))?;
+                    }else{
+                        writeln!(asm, "\timul edx, eax, {}", change.1)?;
+                        writeln!(asm, "\tadd {}, dl", cg.mem(change.0))?;
+                    }
                 }
                 writeln!(asm, "\tmov {}, 0", cg.mem(0))?;
             },
@@ -120,27 +127,24 @@ impl Instruction{
                 writeln!(asm, "\tadd r12, {}", step)?;
                 writeln!(asm, "loop_seeker_{}_check:", cg.seekers_encountered)?;
                 writeln!(asm, "\tcmp {}, {}", cg.mem(0), num)?;
-                writeln!(asm, "\tjne loop_seeker_{}\n", cg.seekers_encountered)?;
+                writeln!(asm, "\tjne loop_seeker_{}", cg.seekers_encountered)?;
                 cg.seekers_encountered+=1;
             },
-
-            unim => return Err(Box::new(BfcError::ConversionToAsmNotImplemented(unim.clone()))),
         };
         Ok(())
     }
 }
 
 //the start of the generated asm file
-fn get_asm_base() -> String{
-    return r#"
-default rel
+fn get_asm_base(tape_size: usize) -> String{
+    return format!("default rel
 
 extern putchar
 extern getchar
 global main
 
 section .bss
-    tape: resb 30000
+    tape: resb {}
 
 section .text
 main:
@@ -148,7 +152,7 @@ main:
     sub rsp, 32
     lea r12, [tape]
 
-"#.to_string();
+", tape_size);
 }
 
 //the end of the generated file

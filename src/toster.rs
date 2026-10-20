@@ -42,7 +42,7 @@ fn shortening_single(){
     assert_eq!(test, Ok("".to_string()));
 
     let test=shorten_ins((' ', 1));
-    assert_eq!(test, Err(crate::error::BfcError::InvalidInstruction(' '.to_string())));
+    assert_eq!(test, Err(crate::utils::BfcError::InvalidInstruction(' '.to_string())));
 }
 
 #[test]
@@ -56,11 +56,11 @@ fn to_operation_list(){
 
 #[test]
 fn operation_optimization_pattern_matching(){
-    use crate::core::builder::optimize_code;
+    use crate::core::code_optimizer::optimize_code;
     use crate::core::builder::Instruction::*;
 
     let mut uop=vec![LoopBegin(2), Add(255), LoopEnd(0), Add(67)];
-    let passes=optimize_code(&mut uop, 2).unwrap();
+    let passes=optimize_code(&mut uop, 2, 10).unwrap();
     assert_eq!(uop, vec![Set(67)]);
-    assert_eq!(passes, 2);
+    assert_eq!(passes, (2, 2));
 }

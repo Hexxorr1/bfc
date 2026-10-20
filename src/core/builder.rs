@@ -1,12 +1,8 @@
-use crate::{core::builder::Instruction::{LoopBegin, LoopEnd}, error::BfcError};
-use crate::core::op_chars;
+use crate::{utils::op_chars, core::builder::Instruction::{LoopBegin, LoopEnd}, utils::BfcError};
 use std::error::Error;
 
-pub mod code_optimizer;
-pub use code_optimizer::optimize_code;
-
 #[derive(Debug, PartialEq, Clone)]
-pub enum Instruction{
+pub enum Instruction{ 
     //basic bf operations
     Add(u8),
     Move(isize),
@@ -27,10 +23,8 @@ pub enum Instruction{
     Set(u8),                                                                //sets the current cell to (u8)
     Seek(u8, isize),                                                        //repeatedly goes (isize) in memory until it finds (u8), MODIFIES START AND END BY (-u8) AND (u8)
     SeekClean(u8, isize),                                                   //performs a Seek() without modifying start and end
-    Not,                                                                    //if self is 0, sets it to 1, else sets it to 0
     ExitIfNonZero,                                                          //closes the program if the current cell is not 0
-    CopyWithBuffer(isize, isize),                                           //copies the current cell into (isize.1) away using (isize.2) as a buffer
-    AddSelfToMultiple(Vec<isize>),                                          //adds the value of self into cells (Vec<isize>) away, sets self to 0
+    LinearLoop(Vec<(isize, u8)>),                                           //changes (isize) by (self*u8), consuming self, ending at self
 
         //pure asm x86-64 instructions
     //CompareFlag(isize),                                                     //cmp [rbx], [rbx+(isize)]
@@ -90,7 +84,7 @@ pub fn build_instruction_list(code: &str) -> Result<Vec<Instruction>, Box<dyn Er
 }
 
 //recalculate loop indices, also used when generating a new set in optimization
-fn recalculate_loops(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
+pub fn recalculate_loops(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
     let mut loop_stack=Vec::new();
 
     for ins_idx in 0..code.len(){
@@ -106,7 +100,6 @@ fn recalculate_loops(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
     }
 
     if !loop_stack.is_empty(){
-        println!("found {}", loop_stack.len());
         return Err(Box::new(BfcError::InvalidParenthesesOpen));
     }
 

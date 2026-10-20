@@ -1,16 +1,12 @@
-use std::{error::Error, fs, process::ExitCode};
-use crate::flags::Flag;
+use std::{time::SystemTime, error::Error, fs, process::{ExitCode, Command}};
+use crate::utils::{Flag, log_if};
 use crate::input::Input;
-use std::time::SystemTime;
-use std::process::Command;
-use crate::core::log_if;
 
-mod error;
+mod utils;
 mod input;
 mod core;
-mod flags;
 
-mod tests;
+mod toster;
 
 //just a caller to run()
 fn main() -> ExitCode{
@@ -18,8 +14,8 @@ fn main() -> ExitCode{
         Ok(()) => ExitCode::SUCCESS,
         Err(e) =>{
             eprintln!("Error encountered:");
-            eprintln!("\t{:?}", e);
-            eprintln!("\t{}", e);
+            eprintln!("\tkind: {:?}", e);
+            eprintln!("\tmsg:  {}", e);
             ExitCode::FAILURE
         }
     }
@@ -80,3 +76,8 @@ fn assemble(parsed_input: Input) -> Result<(), Box<dyn Error>>{
 
     return Ok(());
 }
+
+//version                   1.0         1.1         1.2
+//chess.bf                  362729  ->  350741  ->
+//silownia.bf               1161    ->  1041    ->
+//icantbelievethissorts.bf  -       ->  774     ->

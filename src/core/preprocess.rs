@@ -1,5 +1,5 @@
-use crate::error::BfcError;
-use crate::core::op_chars;
+use crate::utils::BfcError;
+use crate::utils::op_chars;
 use std::error::Error;
 
 //only leaves symbols that matter for the code

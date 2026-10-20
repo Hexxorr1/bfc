@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use crate::error::BfcError;
-use crate::core::OutputType;
+use crate::utils::BfcError;
+use crate::utils::OutputType;
 
 #[derive(Debug, PartialEq)]
 pub enum Flag{

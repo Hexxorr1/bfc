@@ -1,9 +1,10 @@
 use std::{env::Args, error::Error, fs};
-use crate::error::BfcError;
-use crate::flags::Flag;
+use crate::utils::BfcError;
+use crate::utils::Flag;
 
 pub struct Input{
     pub source_code: String,
+    pub tape_size: usize,
     pub destination_name: String,
     pub flags: Vec<Flag>,
 }
@@ -47,6 +48,7 @@ pub fn parse_input(argv: &mut Args) -> Result<Input, Box<dyn Error>>{
 
     let input=Input{
         source_code: source_code,
+        tape_size: 30000,
         destination_name: destination_name,
         flags: flags,
     };

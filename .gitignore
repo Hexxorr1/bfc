@@ -3,3 +3,4 @@
 *.exe
 *.asm
 *.bf
+/code_snippets
