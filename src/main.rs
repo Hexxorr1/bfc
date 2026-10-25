@@ -37,7 +37,8 @@ fn run() -> Result<(), Box<dyn Error>>{
     log_if(log, "Succesfully compiled, outputting...");
 
     let asm_file_path=parsed_input.destination_name.clone()+".asm";
-    fs::write(&asm_file_path, output_code)?;
+    let ll_file_path=parsed_input.destination_name.clone()+".ll";
+    fs::write(&ll_file_path, output_code)?;
 
     if log{
         match time_begin.elapsed(){

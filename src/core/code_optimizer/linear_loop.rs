@@ -31,33 +31,16 @@ pub fn optimize_linear_loops(code: &mut Vec<Instruction>) -> bool{
 }
 
 fn recognize_linear_loop_body(body: &[Instruction]) -> Option<Vec<(isize, u8)>>{
-    use std::collections::BTreeMap;
-    let mut offset=0isize;
-    let mut changes=BTreeMap::<isize, u8>::new();
-
-    for instruction in body{
-        match instruction{
-            Add(n) =>{
-                let entry=changes.entry(offset).or_default();
-                *entry=entry.wrapping_add(*n);
-            }
-
-            Move(n) =>{
-                offset=offset.checked_add(*n)?;
-            }
-
-            //other than add and move, not supported
-            _ => return None,
-        }
-    }
+    use crate::core::code_optimizer::straight_optimizer::get_straight_line_changes;
+    let mut body_eval=get_straight_line_changes(body)?;
 
     //must begin and end at the same cell
-    if offset!=0{
+    if body_eval.1!=0{
         return None;
     }
 
     //calculate whether the loop will ALWAYS be finite
-    let self_change=changes.remove(&0).unwrap_or(0);
+    let self_change=body_eval.0.remove(&0).unwrap_or(0);
     if self_change%2==0{
         return None;
     }
@@ -66,7 +49,7 @@ fn recognize_linear_loop_body(body: &[Instruction]) -> Option<Vec<(isize, u8)>>{
     let mut transfers=Vec::new();
 
     const INVERSES: [u8; 128]=crate::utils::get_modular_inverses();
-    for (offset, delta) in changes{
+    for (offset, delta) in body_eval.0{
         let multiplier=delta.wrapping_mul(INVERSES[(self_change as usize-1)/2]).wrapping_neg();
         if multiplier!=0{
             transfers.push((offset, multiplier));

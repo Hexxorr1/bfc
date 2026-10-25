@@ -1,5 +1,5 @@
-use crate::{utils::op_chars, core::builder::Instruction::{LoopBegin, LoopEnd}, utils::BfcError};
-use std::error::Error;
+use crate::{utils::op_chars, utils::BfcError};
+use std::{error::Error, io::SeekFrom::End};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction{ 
@@ -15,19 +15,16 @@ pub enum Instruction{
     Debug,
 
     //custom, optimized operations, please specify what do they do after conversion
-    //these are NOT to be represented in bf or sbf, theyre only used for optimization
-    //NOTE: SUBJECT TO CHANGE, operations will be added and removed
-    //PLEASE LOOK INTO OPTIMIZATION WHEN CHANGING WHAT THE OPERATION DOES
 
-        //basic operations
+    Nop,
+
     Set(u8),                                                                //sets the current cell to (u8)
-    Seek(u8, isize),                                                        //repeatedly goes (isize) in memory until it finds (u8), MODIFIES START AND END BY (-u8) AND (u8)
-    SeekClean(u8, isize),                                                   //performs a Seek() without modifying start and end
+    Seek(u8, isize),                                                   //goes (isize) at a time until it finds (u8)
     ExitIfNonZero,                                                          //closes the program if the current cell is not 0
     LinearLoop(Vec<(isize, u8)>),                                           //changes (isize) by (self*u8), consuming self, ending at self
 
-        //pure asm x86-64 instructions
-    //CompareFlag(isize),                                                     //cmp [rbx], [rbx+(isize)]
+    If(usize),                                                              //if the current cell is 0 jump to (usize)
+    EndIf,                                                                  //only used when recalculating the if statements
 }
 
 impl Instruction{
@@ -77,29 +74,34 @@ pub fn build_instruction_list(code: &str) -> Result<Vec<Instruction>, Box<dyn Er
     }
 
     //since loops were pushed with junk, recalculate
-    recalculate_loops(&mut instructions)?;
+    recalculate_scopes(&mut instructions)?;
 
 
     Ok(instructions)
 }
 
 //recalculate loop indices, also used when generating a new set in optimization
-pub fn recalculate_loops(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
-    let mut loop_stack=Vec::new();
+pub fn recalculate_scopes(code: &mut Vec<Instruction>) -> Result<(), Box<dyn Error>>{
+    use crate::core::builder::Instruction::*;
+    let mut scope_stack=Vec::new();
 
     for ins_idx in 0..code.len(){
         match code[ins_idx]{
-            LoopBegin(_) => loop_stack.push(ins_idx),
+            LoopBegin(_) | If(_) => scope_stack.push(ins_idx),
             LoopEnd(_) =>{
-                let begin=loop_stack.pop().ok_or(BfcError::InvalidParenthesesClose)?;
-                code[begin]=Instruction::LoopBegin(ins_idx);
-                code[ins_idx]=Instruction::LoopEnd(begin);
+                let begin=scope_stack.pop().ok_or(BfcError::InvalidParenthesesClose)?;
+                code[begin]=LoopBegin(ins_idx);
+                code[ins_idx]=LoopEnd(begin);
             },
+            EndIf =>{
+                let begin=scope_stack.pop().ok_or(BfcError::InvalidParenthesesClose)?;
+                code[begin]=If(ins_idx);
+            }
             _ => (),
         };
     }
 
-    if !loop_stack.is_empty(){
+    if !scope_stack.is_empty(){
         return Err(Box::new(BfcError::InvalidParenthesesOpen));
     }
 

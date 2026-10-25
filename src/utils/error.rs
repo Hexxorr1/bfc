@@ -28,8 +28,8 @@ impl std::fmt::Display for BfcError{
             TooLittleFlagArgs(f) => format!("too little args have been passed to {f:?}"),
 
             InvalidInstruction(c) => format!("failed when parsing instruction: '{c}'"),
-            InvalidParenthesesOpen => "too many opening parentheses '[' in source code".into(),
-            InvalidParenthesesClose => "too many closing parentheses ']' in source code".into(),
+            InvalidParenthesesOpen => "too many scope openings code".into(),
+            InvalidParenthesesClose => "too many scope endings in code".into(),
             ConversionToAsmNotImplemented(i) => format!("the converter doesnt know how to process {i:?}"),
             OutOfTapeBounds => "found an out of array access".into(),
             GenerationTooLarge => "the generation count has overflown u64".into(),
@@ -39,14 +39,13 @@ impl std::fmt::Display for BfcError{
 }
 
 pub enum BfcWarn{
-    ConstantPropagationDisabled,
 }
 
 impl std::fmt::Display for BfcWarn{
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result<(), std::fmt::Error>{
         use BfcWarn::*;
         let warn_msg: String=match self{
-            ConstantPropagationDisabled => "due to lengthy code constant propagation failed and will be disabled".into(),
+            _ => "".into(),
         };
         write!(formatter, "{warn_msg}")
     }

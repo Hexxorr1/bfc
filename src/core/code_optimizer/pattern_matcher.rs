@@ -61,14 +61,14 @@ optimization_table!(
 
         //removing useless operations
     [LoopBegin(_), LoopEnd(_)] => vec![ExitIfNonZero];
+    [Move(0)] => vec![];
+    [Add(0)] => vec![];
     [Move(n), Move(k)] => vec![Move(*n+*k)];
     [Add(n), Add(k)] => vec![Add(n.wrapping_add(*k))];
 
         //multiple -> single
 
         //seekers
-    [LoopBegin(_), Move(m), LoopEnd(_)] => vec![SeekClean(0, *m)];
-    [LoopBegin(_), Add(n), Move(m), Add(c), LoopEnd(_)] if *c==n.wrapping_neg() => vec![Seek(*n, *m)];
-    [Add(a), Seek(n, m), Add(b)] if *a==n.wrapping_neg() && *b==*n => vec![SeekClean(*n, *m)];
-    [Seek(n, m)] => vec![Add(*n), SeekClean(*n, *m), Add(n.wrapping_neg())];
+    [LoopBegin(_), Move(m), LoopEnd(_)] => vec![Seek(0, *m)];
+    [LoopBegin(_), Add(n), Move(m), Add(c), LoopEnd(_)] if *n==c.wrapping_neg() => vec![Add(*n), Seek(*n, *m), Add(n.wrapping_neg())];
 );

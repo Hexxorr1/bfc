@@ -13,7 +13,7 @@ struct CellWrite{
 }
 
 #[derive(Clone)]
-struct CellState{
+pub struct CellState{
     value: CellValue,
     last_write: Option<CellWrite>,
 }
@@ -123,6 +123,8 @@ impl ConstantPropagator{
         while ins_index<instructions.len(){
             let ins=instructions[ins_index].clone();
             match ins{
+                Nop => did_change=true,
+
                 Add(n) =>{
                     if let Some(new)=self.add(n)?{
                         did_change=true;
@@ -188,9 +190,11 @@ impl ConstantPropagator{
                 LoopEnd(begin) =>{
                     let exit_cell=self.get_cell_value()?;
                     match exit_cell{
-                        //possible optimization, replace with a single check
+                        //this may only run 1 time, replace with If
                         //Some(0) =>{
-                        //    dead_writes[begin]=true;
+                        //    did_change=true;
+                        //    optimized_instructions[begin]=If(ins_index);
+                        //    emit_ins(&mut optimized_instructions, &mut dead_writes, EndIf);
                         //},
                         Some(_) | None =>{
                             self.invalidate_all_values()?;
@@ -269,7 +273,7 @@ impl ConstantPropagator{
                     self.preserve_last_write()?;
                 },
 
-                SeekClean(target_val, _) =>{
+                Seek(target_val, _) =>{
                     let current=self.get_cell_value()?;
                     if let Some(v)=current && v==target_val{
                         did_change=true;
@@ -281,16 +285,29 @@ impl ConstantPropagator{
 
                 },
 
-                Seek(_, _) =>{
+                If(block_end) =>{
                     let current=self.get_cell_value()?;
-                    if let Some(v)=current && v==0{
+                    if let Some(v)=current{
                         did_change=true;
+                        match v{
+                            0 =>{
+                                //delete because known to not execute
+                                ins_index=block_end;
+                            },
+                            _ =>{
+                                //delete only self andthe ending, will always execute
+                                instructions[block_end]=Nop;
+                            }
+                        }
                     }else{
-                        self.invalidate_pointer_position()?;
-                        self.set(0)?;
                         emit_ins(&mut optimized_instructions, &mut dead_writes, ins);
                     }
+                },
 
+                EndIf =>{
+                    self.invalidate_all_values()?;
+                    self.invalidate_all_writes()?;
+                    emit_ins(&mut optimized_instructions, &mut dead_writes, ins);
                 },
             }
             ins_index+=1;
@@ -298,8 +315,14 @@ impl ConstantPropagator{
 
         let mut final_instructions=Vec::with_capacity(optimized_instructions.len());
         for index in 0..optimized_instructions.len(){
+            //dont push dead instructions
             if !dead_writes[index]{
-                final_instructions.push(optimized_instructions[index].clone());
+                let to_push=&optimized_instructions[index];
+
+                //this function may produce Nop, dont push
+                if *to_push!=Nop{
+                    final_instructions.push(to_push.clone());
+                }
             }else{
                 did_change=true;
             }

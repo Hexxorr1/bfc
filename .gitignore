@@ -2,5 +2,6 @@
 *.obj
 *.exe
 *.asm
+*.ll
 *.bf
 /code_snippets

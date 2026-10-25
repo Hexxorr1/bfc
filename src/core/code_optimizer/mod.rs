@@ -2,11 +2,13 @@ use std::error::Error;
 use constant_propagator::ConstantPropagator;
 use linear_loop::optimize_linear_loops;
 use pattern_matcher::optimization_pass;
-use crate::{core::builder::{Instruction, recalculate_loops}, utils::BfcError};
+use crate::{core::builder::{Instruction, recalculate_scopes}, utils::BfcError};
 
 mod constant_propagator;
 mod pattern_matcher;
 mod linear_loop;
+mod loop_evaluator;
+mod straight_optimizer;
 
 //perform several cycles of passes of code optimization
 pub fn optimize_code(ins: &mut Vec<Instruction>, tape_size: usize, max_passes: u32) -> Result<(u32, u32), Box<dyn Error>>{
@@ -27,7 +29,7 @@ pub fn optimize_code(ins: &mut Vec<Instruction>, tape_size: usize, max_passes: u
             iterations_succesful+=changed as u32;
             if changed{
                 //the code got optimized and the loops got messed up, maybe optimize this?
-                recalculate_loops(&mut current_iteration_code)?;
+                recalculate_scopes(&mut current_iteration_code)?;
                 did_change[step_idx]=true;
             }
         }

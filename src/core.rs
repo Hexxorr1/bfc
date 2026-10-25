@@ -6,7 +6,7 @@ use crate::utils::Flag;
 
 pub mod preprocess;
 pub mod builder;
-pub mod assembly_converter;
+pub mod code_generator;
 pub mod code_optimizer;
 
 pub fn compile(parsed_input: &Input) -> Result<String, Box<dyn Error>>{
@@ -48,8 +48,8 @@ pub fn compile(parsed_input: &Input) -> Result<String, Box<dyn Error>>{
 
     log_if(log, "\tConverting instruction list to assembly...");
 
-    let mut cg=assembly_converter::AssemblyGenerator::new();
-    let assembly_code=cg.convert_to_assembly(&instruction_list, parsed_input.tape_size)?;
+    let mut cg=code_generator::CodeGenerator::new(code_generator::GeneratedCodeType::LLVMir, parsed_input.tape_size);
+    let assembly_code=cg.generate_target(&instruction_list)?;
 
     log_if(log, "\tConverting finished");
 
